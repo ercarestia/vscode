@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 
 export class ViewModel implements debug.IViewModel {
 
 	private _focusedStackFrame: debug.IStackFrame;
+	private _focusedProcess: debug.IProcess;
+	private _focusedThread: debug.IThread;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
-	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
+	private _onDidFocusProcess: Emitter<debug.IProcess | undefined>;
+	private _onDidFocusStackFrame: Emitter<{ stackFrame: debug.IStackFrame, explicit: boolean }>;
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
-	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
-	private _onDidSelectConfigurationName: Emitter<string>;
-	public changedWorkbenchViewState: boolean;
+	private multiProcessView: boolean;
 
-	constructor(private _selectedConfigurationName: string) {
-		this._onDidFocusStackFrame = new Emitter<debug.IStackFrame>();
+	constructor() {
+		this._onDidFocusProcess = new Emitter<debug.IProcess | undefined>();
+		this._onDidFocusStackFrame = new Emitter<{ stackFrame: debug.IStackFrame, explicit: boolean }>();
 		this._onDidSelectExpression = new Emitter<debug.IExpression>();
-		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
-		this._onDidSelectConfigurationName = new Emitter<string>();
-		this.changedWorkbenchViewState = false;
+		this.multiProcessView = false;
 	}
 
 	public getId(): string {
@@ -30,23 +30,37 @@ export class ViewModel implements debug.IViewModel {
 	}
 
 	public get focusedProcess(): debug.IProcess {
-		return this._focusedStackFrame ? this._focusedStackFrame.thread.process : null;
+		return this._focusedProcess;
 	}
 
 	public get focusedThread(): debug.IThread {
-		return this._focusedStackFrame ? this._focusedStackFrame.thread : null;
+		return this._focusedStackFrame ? this._focusedStackFrame.thread : (this._focusedProcess ? this._focusedProcess.getAllThreads().pop() : null);
 	}
 
 	public get focusedStackFrame(): debug.IStackFrame {
 		return this._focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame): void {
-		this._focusedStackFrame = focusedStackFrame;
-		this._onDidFocusStackFrame.fire(focusedStackFrame);
+	public setFocus(stackFrame: debug.IStackFrame, thread: debug.IThread, process: debug.IProcess, explicit: boolean): void {
+		let shouldEmit = this._focusedProcess !== process || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
+
+		if (this._focusedProcess !== process) {
+			this._focusedProcess = process;
+			this._onDidFocusProcess.fire(process);
+		}
+		this._focusedThread = thread;
+		this._focusedStackFrame = stackFrame;
+
+		if (shouldEmit) {
+			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
+		}
 	}
 
-	public get onDidFocusStackFrame(): Event<debug.IStackFrame> {
+	public get onDidFocusProcess(): Event<debug.IProcess> {
+		return this._onDidFocusProcess.event;
+	}
+
+	public get onDidFocusStackFrame(): Event<{ stackFrame: debug.IStackFrame, explicit: boolean }> {
 		return this._onDidFocusStackFrame.event;
 	}
 
@@ -69,23 +83,13 @@ export class ViewModel implements debug.IViewModel {
 
 	public setSelectedFunctionBreakpoint(functionBreakpoint: debug.IFunctionBreakpoint): void {
 		this.selectedFunctionBreakpoint = functionBreakpoint;
-		this._onDidSelectFunctionBreakpoint.fire(functionBreakpoint);
 	}
 
-	public get onDidSelectFunctionBreakpoint(): Event<debug.IFunctionBreakpoint> {
-		return this._onDidSelectFunctionBreakpoint.event;
+	public isMultiProcessView(): boolean {
+		return this.multiProcessView;
 	}
 
-	public get selectedConfigurationName(): string {
-		return this._selectedConfigurationName;
-	}
-
-	public setSelectedConfigurationName(configurationName: string): void {
-		this._selectedConfigurationName = configurationName;
-		this._onDidSelectConfigurationName.fire(configurationName);
-	}
-
-	public get onDidSelectConfigurationName(): Event<string> {
-		return this._onDidSelectConfigurationName.event;
+	public setMultiProcessView(isMultiProcessView: boolean): void {
+		this.multiProcessView = isMultiProcessView;
 	}
 }

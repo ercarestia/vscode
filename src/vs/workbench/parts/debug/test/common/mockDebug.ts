@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
+import uri from 'vs/base/common/uri';
+import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISuggestion } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
@@ -18,7 +16,19 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public get onDidChangeState(): Event<void> {
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
+		return null;
+	}
+
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return null;
+	}
+
+	public get onDidEndProcess(): Event<debug.IProcess> {
+		return null;
+	}
+
+	public get onDidChangeState(): Event<debug.State> {
 		return null;
 	}
 
@@ -26,11 +36,14 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+	public focusStackFrame(focusedStackFrame: debug.IStackFrame): void {
+	}
+
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 
-	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -48,6 +61,8 @@ export class MockDebugService implements debug.IDebugService {
 
 	public addFunctionBreakpoint(): void { }
 
+	public moveWatchExpression(id: string, position: number): void { }
+
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
 		return TPromise.as(null);
 	}
@@ -62,10 +77,6 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeReplExpressions(): void { }
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void { }
-
-	public appendReplOutput(value: string, severity?: severity): void { }
-
 	public addWatchExpression(name?: string): TPromise<void> {
 		return TPromise.as(null);
 	}
@@ -76,11 +87,15 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
+	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
 	public restartProcess(): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public stopProcess(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -92,45 +107,9 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
-		return TPromise.as(null);
-	}
+	public logToRepl(value: string): void { }
 
-	public next(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public stepIn(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public stepOut(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public stepBack(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public continue(threadId: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public pause(threadId: number): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public restartFrame(frameId: number): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		return TPromise.as([]);
-	}
+	public sourceIsNotAvailable(uri: uri): void { }
 }
 
 export class MockSession implements debug.ISession {
@@ -141,9 +120,7 @@ export class MockSession implements debug.ISession {
 		return 'mockrawsession';
 	}
 
-	public get requestType() {
-		return debug.SessionRequestType.LAUNCH;
-	}
+	public root: IWorkspaceFolder;
 
 	public getLengthInSeconds(): number {
 		return 100;
@@ -151,10 +128,24 @@ export class MockSession implements debug.ISession {
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
 		return TPromise.as({
+			seq: 1,
+			type: 'response',
+			request_seq: 1,
+			success: true,
+			command: 'stackTrace',
 			body: {
-				stackFrames: []
+				stackFrames: [{
+					id: 1,
+					name: 'mock',
+					line: 5,
+					column: 6
+				}]
 			}
 		});
+	}
+
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return TPromise.as(null);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
@@ -173,16 +164,24 @@ export class MockSession implements debug.ISession {
 		return TPromise.as(null);
 	}
 
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
-		return {
-			type: 'mock',
-			capabilities: {}
-		};
+	public get capabilities(): DebugProtocol.Capabilities {
+		return {};
 	}
 
-	public get onDidEvent(): Event<DebugProtocol.Event> {
+	public get onDidEvent(): Event<debug.DebugEvent> {
 		return null;
 	}
+
+	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
+		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
+		return emitter.event;
+	}
+
+	public get onDidExitAdapter(): Event<debug.DebugEvent> {
+		const emitter = new Emitter<debug.DebugEvent>();
+		return emitter.event;
+	}
+
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);
@@ -209,6 +208,10 @@ export class MockSession implements debug.ISession {
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+		return TPromise.as(null);
+	}
+
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
 		return TPromise.as(null);
 	}
 
