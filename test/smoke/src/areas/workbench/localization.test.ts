@@ -3,54 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import { Logger, Application } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-import { SpectronApplication, Quality } from '../../spectron/application';
+export function setup(logger: Logger) {
 
-export function setup() {
 	describe('Localization', () => {
-		before(async function () {
-			const app = this.app as SpectronApplication;
-			this.app.suiteName = 'Localization';
+		// Shared before/after handling
+		installAllHandlers(logger);
 
-			if (app.quality === Quality.Dev) {
-				return;
+		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
+			const app = this.app as Application;
+
+			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
+			await app.restart({ extraArgs: ['--locale=DE'] });
+
+			const result = await app.workbench.localization.getLocalizedStrings();
+			const localeInfo = await app.workbench.localization.getLocaleInfo();
+
+			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
+				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
 			}
 
-			await app.restart(['--locale=DE']);
-		});
-
-		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-			const app = this.app as SpectronApplication;
-
-			if (app.quality === Quality.Dev) {
-				this.skip();
-				return;
+			if (localeInfo.language.toLowerCase() !== 'de') {
+				throw new Error(`The UI language is not German. It is ${localeInfo.language}`);
 			}
 
-			let text = await app.workbench.explorer.getOpenEditorsViewTitle();
-			await app.screenCapturer.capture('Open editors title');
-			assert(/geöffnete editoren/i.test(text));
-
-			await app.workbench.search.openSearchViewlet();
-			text = await app.workbench.search.getTitle();
-			await app.screenCapturer.capture('Search title');
-			assert(/suchen/i.test(text));
-
-			await app.workbench.scm.openSCMViewlet();
-			text = await app.workbench.scm.getTitle();
-			await app.screenCapturer.capture('Scm title');
-			assert(/quellcodeverwaltung/i.test(text));
-
-			await app.workbench.debug.openDebugViewlet();
-			text = await app.workbench.debug.getTitle();
-			await app.screenCapturer.capture('Debug title');
-			assert(/debuggen/i.test(text));
-
-			await app.workbench.extensions.openExtensionsViewlet();
-			text = await app.workbench.extensions.getTitle();
-			await app.screenCapturer.capture('Extensions title');
-			assert(/erweiterungen/i.test(text));
+			if (result.open.toLowerCase() !== 'öffnen' || result.close.toLowerCase() !== 'schließen' || result.find.toLowerCase() !== 'finden') {
+				throw new Error(`Received wrong German localized strings: ${JSON.stringify(result, undefined, 0)}`);
+			}
 		});
 	});
 }

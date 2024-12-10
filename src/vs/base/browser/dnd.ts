@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { $ } from 'vs/base/browser/builder';
+import { addDisposableListener, getWindow } from './dom.js';
+import { Disposable } from '../common/lifecycle.js';
+import { Mimes } from '../common/mime.js';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
-export class DelayedDragHandler {
-
-	private timeout: number;
+export class DelayedDragHandler extends Disposable {
+	private timeout: any;
 
 	constructor(container: HTMLElement, callback: () => void) {
-		$(container).on('dragover', () => {
+		super();
+
+		this._register(addDisposableListener(container, 'dragover', e => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();
@@ -24,9 +27,13 @@ export class DelayedDragHandler {
 					this.timeout = null;
 				}, 800);
 			}
-		});
+		}));
 
-		$(container).on(['dragleave', 'drop', 'dragend'], () => this.clearDragTimeout());
+		['dragleave', 'drop', 'dragend'].forEach(type => {
+			this._register(addDisposableListener(container, type, () => {
+				this.clearDragTimeout();
+			}));
+		});
 	}
 
 	private clearDragTimeout(): void {
@@ -36,7 +43,9 @@ export class DelayedDragHandler {
 		}
 	}
 
-	public dispose(): void {
+	override dispose(): void {
+		super.dispose();
+
 		this.clearDragTimeout();
 	}
 }
@@ -45,17 +54,57 @@ export class DelayedDragHandler {
 export const DataTransfers = {
 
 	/**
-	 * Application specific resource transfer type.
+	 * Application specific resource transfer type
 	 */
-	URL: 'URL',
+	RESOURCES: 'ResourceURLs',
 
 	/**
-	 * Browser specific transfer type to download.
+	 * Browser specific transfer type to download
 	 */
 	DOWNLOAD_URL: 'DownloadURL',
 
 	/**
-	 * Typicaly transfer type for copy/paste transfers.
+	 * Browser specific transfer type for files
 	 */
-	TEXT: 'text/plain'
+	FILES: 'Files',
+
+	/**
+	 * Typically transfer type for copy/paste transfers.
+	 */
+	TEXT: Mimes.text,
+
+	/**
+	 * Internal type used to pass around text/uri-list data.
+	 *
+	 * This is needed to work around https://bugs.chromium.org/p/chromium/issues/detail?id=239745.
+	 */
+	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
 };
+
+export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
+	const dragImage = document.createElement('div');
+	dragImage.className = clazz;
+	dragImage.textContent = label;
+
+	if (foregroundColor) {
+		dragImage.style.color = foregroundColor;
+	}
+
+	if (backgroundColor) {
+		dragImage.style.background = backgroundColor;
+	}
+
+	if (event.dataTransfer) {
+		const ownerDocument = getWindow(event).document;
+		ownerDocument.body.appendChild(dragImage);
+		event.dataTransfer.setDragImage(dragImage, -10, -10);
+
+		// Removes the element when the DND operation is done
+		setTimeout(() => dragImage.remove(), 0);
+	}
+}
+
+export interface IDragAndDropData {
+	update(dataTransfer: DataTransfer): void;
+	getData(): unknown;
+}

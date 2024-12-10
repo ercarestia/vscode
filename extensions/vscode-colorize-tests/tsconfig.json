@@ -1,16 +1,13 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"module": "commonjs",
-		"target": "ES5",
-		"outDir": "out",
-		"noUnusedLocals": true,
-		"lib": [
-			"es2015"
-		],
-		"sourceMap": true,
-		"strict": true
+		"outDir": "./out",
+		"types": [
+			"node"
+		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
 	]
 }
